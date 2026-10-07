@@ -150,8 +150,32 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
       </div>
 
       <div class="field" id="countField">
-        <label class="label" for="count" id="countLabel">잔상 개수</label>
+        <label class="label" for="count" id="countLabel">글자 밀도</label>
         <div class="range"><input type="range" id="count" min="2" max="14" value="7"><output id="countOut">7</output></div>
+      </div>
+
+      <div class="field" id="trailField">
+        <label class="label" for="tn">잔상 개수</label>
+        <div class="range"><input type="range" id="tn" min="1" max="40" value="18"><output id="tnOut">18</output></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="ws">창 크기</label>
+        <div class="range"><input type="range" id="ws" min="30" max="90" value="60"><output id="wsOut">60%</output></div>
+      </div>
+
+      <div class="field">
+        <span class="label">제목 옆 아이콘</span>
+        <div class="seg" id="icon">
+          <button type="button" data-v="heart" aria-pressed="true" aria-label="하트">♥</button>
+          <button type="button" data-v="x" aria-pressed="false" aria-label="엑스">✕</button>
+          <button type="button" data-v="tri" aria-pressed="false" aria-label="세모">▲</button>
+          <button type="button" data-v="sq" aria-pressed="false" aria-label="네모">■</button>
+          <button type="button" data-v="dot" aria-pressed="false" aria-label="동그라미">●</button>
+          <button type="button" data-v="star" aria-pressed="false" aria-label="별">★</button>
+          <button type="button" data-v="warn" aria-pressed="false" aria-label="경고">⚠</button>
+          <button type="button" data-v="none" aria-pressed="false">없음</button>
+        </div>
       </div>
 
       <div class="field" id="glField">
@@ -181,7 +205,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 <script>
 const FONT='"Gothic A1","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
 const BASE_W=1200;
-const state={layers:{trail:true,glitch:true,term:false},images:[],text:'에러',ratio:1.5,color:'#1d56f5',effect:'scan',count:7,glitch:6,path:null,seed:20231007};
+const state={layers:{trail:true,glitch:true,term:false},images:[],text:'에러',ratio:1.5,color:'#1d56f5',effect:'scan',count:7,glitch:6,path:null,winSize:.6,trailN:18,icon:'heart',seed:20231007};
 const MONO='"IBM Plex Mono","Gothic A1",ui-monospace,monospace';
 function hexRgb(h){h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.substr(i,2),16))}
 function mix(a,b,t){const A=hexRgb(a),B=hexRgb(b);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')'}
@@ -273,7 +297,7 @@ function chrome(x,X,Y,W,H,s,opts={}){
   x.beginPath();x.rect(X,Y,W-120*s,tb);x.clip();
   x.fillStyle='#fff';x.textBaseline='middle';
   let tx=X+20*s;
-  if(opts.heart){heart(x,tx+12*s,Y+tb/2,11*s);tx+=34*s}
+  if(state.icon!=='none'){drawIcon(x,state.icon,tx+12*s,Y+tb/2,11*s);tx+=34*s}
   fitFont(x,state.text,W-160*s,30*s,500);
   x.fillText(state.text,tx,Y+tb/2+2*s);
   x.restore();
@@ -281,6 +305,18 @@ function chrome(x,X,Y,W,H,s,opts={}){
   return {x:X+8*s,y:Y+tb,w:W-16*s,h:H-tb-8*s};
 }
 
+function drawIcon(x,k,cx,cy,r){
+  x.save();x.fillStyle='#fff';x.strokeStyle='#fff';x.lineCap='round';x.lineJoin='round';
+  if(k==='heart')heart(x,cx,cy,r);
+  else if(k==='x'){x.lineWidth=r*.42;x.beginPath();x.moveTo(cx-r*.75,cy-r*.75);x.lineTo(cx+r*.75,cy+r*.75);x.moveTo(cx+r*.75,cy-r*.75);x.lineTo(cx-r*.75,cy+r*.75);x.stroke()}
+  else if(k==='tri'){x.beginPath();x.moveTo(cx,cy-r);x.lineTo(cx+r*1.1,cy+r*.85);x.lineTo(cx-r*1.1,cy+r*.85);x.closePath();x.fill()}
+  else if(k==='sq'){x.fillRect(cx-r*.85,cy-r*.85,r*1.7,r*1.7)}
+  else if(k==='dot'){x.beginPath();x.arc(cx,cy,r*.95,0,Math.PI*2);x.fill()}
+  else if(k==='star'){x.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.45:r*1.1;x.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr)}x.closePath();x.fill()}
+  else if(k==='warn'){x.beginPath();x.moveTo(cx,cy-r);x.lineTo(cx+r*1.1,cy+r*.85);x.lineTo(cx-r*1.1,cy+r*.85);x.closePath();x.fill();
+    x.fillStyle=state.color;x.fillRect(cx-r*.12,cy-r*.45,r*.24,r*.7);x.beginPath();x.arc(cx,cy+r*.5,r*.14,0,Math.PI*2);x.fill()}
+  x.restore();
+}
 function heart(x,cx,cy,r){
   x.beginPath();x.moveTo(cx,cy+r*.9);
   x.bezierCurveTo(cx-r*1.6,cy-r*.2,cx-r*.7,cy-r*1.3,cx,cy-r*.45);
@@ -491,8 +527,8 @@ function drawTrail(x,W,H,s,r,term){
   const P=pics();
   if(term)termBackdrop(x,W,H,s,r);else{x.fillStyle='#0a7c78';x.fillRect(0,0,W,H)}
   const taskH=66*s;
-  const n=Math.round(8+state.count*2.3);
-  const ww=W*.48,wh=Math.min(ww*1.22,(H-taskH)*.52);
+  const n=state.trailN;
+  const ww=W*state.winSize,wh=Math.min(ww*1.22,(H-taskH)*.85);
   const mode=Math.floor(r()*3);
   const sx=W*.04,sy=H*.035,ex=W-ww-W*.04,ey=H-taskH-wh-H*.03;
   const amp=Math.min(H*.09,(ey-sy)*.35);
@@ -536,9 +572,10 @@ function drawGlitchScene(x,W,H,s,r){
   x.fillStyle='#050505';x.fillRect(0,0,W,H);
   const rand=(a,b)=>a+r()*(b-a);
   for(let i=0;i<4;i++){const w=rand(360,460)*s,h=rand(180,220)*s;dialog(x,{x:rand(-40*s,W-w+40*s),y:rand(0,H-h),w,h},s)}
-  const aw=W*.62,ah=Math.min(aw*1.15,H*.5);
+  const z=state.winSize/.6;
+  const aw=Math.min(W*.9,W*.62*z),ah=Math.min(aw*1.15,H*.6);
   imageWindow(x,W*.06,H*.06,aw,ah,s,P[P.length>1?1:0],false);
-  const bw=W*.7,bh=Math.min(bw*1.1,H*.55);
+  const bw=Math.min(W*.92,W*.7*z),bh=Math.min(bw*1.1,H*.65);
   imageWindow(x,W-bw-W*.05,H-bh-H*.05,bw,bh,s,P[0],true);
   dialog(x,{x:W*.08,y:H*.5,w:420*s,h:200*s},s);
 }
@@ -617,8 +654,9 @@ function setColor(v){state.color=v;document.documentElement.style.setProperty('-
   $('colors').querySelectorAll('button').forEach(o=>o.setAttribute('aria-pressed',o.dataset.v===v))}
 function syncUI(){
   const L=state.layers;
-  $('countField').hidden=!(L.trail||L.term);
-  $('countLabel').textContent=L.trail?'잔상 개수':'글자 밀도';
+  $('countField').hidden=!(L.term&&!L.trail);
+  $('countLabel').textContent='글자 밀도';
+  $('trailField').hidden=!L.trail;
   $('glField').hidden=!L.glitch;
   $('effectField').hidden=L.term;
   $('hint').hidden=!L.trail;out.classList.toggle('draggable',L.trail);
@@ -663,7 +701,9 @@ function endDraw(){
 }
 out.addEventListener('pointerup',endDraw);out.addEventListener('pointercancel',endDraw);
 $('autoPath').addEventListener('click',()=>{state.path=null;syncUI();schedule()});
-bindSeg('ratio','ratio',Number);bindSeg('colors','color');bindSeg('effect','effect');
+bindSeg('ratio','ratio',Number);bindSeg('icon','icon');
+$('tn').addEventListener('input',e=>{state.trailN=+e.target.value;$('tnOut').textContent=e.target.value;schedule()});
+$('ws').addEventListener('input',e=>{state.winSize=e.target.value/100;$('wsOut').textContent=e.target.value+'%';schedule()});bindSeg('colors','color');bindSeg('effect','effect');
 $('txt').addEventListener('input',e=>{state.text=e.target.value.trim()||'에러';$('barTitle').textContent=state.text;schedule()});
 $('count').addEventListener('input',e=>{state.count=+e.target.value;$('countOut').textContent=e.target.value;schedule()});
 $('shuffle').addEventListener('click',()=>{state.seed=Math.floor(Math.random()*1e9);schedule()});

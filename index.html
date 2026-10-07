@@ -62,6 +62,7 @@ input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px}
 .swatches button[aria-pressed=true]{border-color:var(--fg)}
 .range{display:flex;align-items:center;gap:10px}
 .range input{flex:1;accent-color:var(--accent)}
+.range .rl{font-size:12px;color:var(--muted);min-width:2.2em}
 .range output{font-family:var(--mono);font-variant-numeric:tabular-nums;min-width:2ch;text-align:right}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
 .btn{flex:1 1 auto;border:0;border-radius:6px;padding:10px 12px;font:inherit;font-weight:700;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
@@ -165,6 +166,14 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
       </div>
 
       <div class="field">
+        <span class="label">사진 위치 · 확대</span>
+        <div class="range"><span class="rl">확대</span><input type="range" id="zm" min="100" max="300" value="100" aria-label="사진 확대"><output id="zmOut">100%</output></div>
+        <div class="range"><span class="rl">좌우</span><input type="range" id="px" min="-100" max="100" value="0" aria-label="사진 좌우 위치"><output id="pxOut">0</output></div>
+        <div class="range"><span class="rl">상하</span><input type="range" id="py" min="-100" max="100" value="0" aria-label="사진 상하 위치"><output id="pyOut">0</output></div>
+        <button type="button" class="btn ghost" id="resetPhoto">사진 위치 초기화</button>
+      </div>
+
+      <div class="field">
         <span class="label">제목 옆 아이콘</span>
         <div class="seg" id="icon">
           <button type="button" data-v="heart" aria-pressed="true" aria-label="하트">♥</button>
@@ -196,7 +205,8 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
     <div class="tbar"><span>미리보기</span><span class="tbtns"><i></i><i></i><i></i></span></div>
     <div class="body">
       <div class="stage" id="stage"><span class="frame"><img id="out" alt="에러 창으로 꾸민 포스터 미리보기" draggable="false"><canvas id="ov"></canvas></span></div>
-      <p class="hint" id="hint"><span id="hintText">미리보기 위를 드래그하면, 창을 끌고 간 길대로 잔상이 생겨요.</span><button type="button" class="btn ghost" id="autoPath" hidden>자동 경로로 되돌리기</button></p>
+      <div class="seg" id="tmode" style="max-width:360px;width:100%"><button type="button" data-v="draw" aria-pressed="true">경로 그리기</button><button type="button" data-v="move" aria-pressed="false">옮기기</button></div>
+      <p class="hint" id="hint"><span id="hintText">미리보기 위를 드래그하면, 창을 끌고 간 길대로 잔상이 생겨요.</span><button type="button" class="btn ghost" id="autoPath" hidden>자동 경로로 되돌리기</button><button type="button" class="btn ghost" id="resetWins" hidden>창 위치 초기화</button></p>
       
     </div>
   </section>
@@ -205,7 +215,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 <script>
 const FONT='"Gothic A1","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
 const BASE_W=1200;
-const state={layers:{trail:true,glitch:true,term:false},images:[],text:'에러',ratio:1.5,color:'#1d56f5',effect:'scan',count:7,glitch:6,path:null,winSize:.6,trailN:18,icon:'heart',seed:20231007};
+const state={layers:{trail:true,glitch:true,term:false},images:[],text:'에러',ratio:1.5,color:'#1d56f5',effect:'scan',count:7,glitch:6,path:null,trailMode:'draw',edits:{},zorder:[],zoom:1,ox:0,oy:0,winSize:.6,trailN:18,icon:'heart',seed:20231007};
 const MONO='"IBM Plex Mono","Gothic A1",ui-monospace,monospace';
 function hexRgb(h){h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.substr(i,2),16))}
 function mix(a,b,t){const A=hexRgb(a),B=hexRgb(b);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')'}
@@ -237,14 +247,14 @@ function pics(){return state.images.length?state.images:[SAMPLE]}
 function processed(entry,w,h,s,effArg){
   const eff=effArg||state.effect;
   w=Math.max(1,Math.round(w));h=Math.max(1,Math.round(h));
-  const key=entry.id+'|'+w+'|'+h+'|'+eff+(eff==='ascii'?state.color:'');
+  const key=entry.id+'|'+w+'|'+h+'|'+eff+(eff==='ascii'?state.color:'')+'|'+state.zoom+'|'+state.ox+'|'+state.oy;
   if(cache.has(key))return cache.get(key);
   if(cache.size>60)cache.clear();
   const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
   const iw=entry.img.naturalWidth||entry.img.width, ih=entry.img.naturalHeight||entry.img.height;
-  const sc=Math.max(w/iw,h/ih),dw=iw*sc,dh=ih*sc;
+  const sc=Math.max(w/iw,h/ih)*state.zoom,dw=iw*sc,dh=ih*sc;
   x.fillStyle='#fff';x.fillRect(0,0,w,h);
-  x.drawImage(entry.img,(w-dw)/2,(h-dh)/2,dw,dh);
+  x.drawImage(entry.img,(w-dw)/2-state.ox*(dw-w)/2,(h-dh)/2-state.oy*(dh-h)/2,dw,dh);
   if(eff==='ascii'){asciiInto(x,entry,w,h,s)}
   else if(eff!=='none'){
     const d=x.getImageData(0,0,w,h),p=d.data,r=rng(w*7919+h*31);
@@ -475,7 +485,8 @@ function lumGrid(entry,cols,rows,aspect){
   const sm=document.createElement('canvas');sm.width=cols;sm.height=rows;const sx=sm.getContext('2d');
   const iw=entry.img.naturalWidth||entry.img.width,ih=entry.img.naturalHeight||entry.img.height;
   let cw=iw,ch=iw/aspect;if(ch>ih){ch=ih;cw=ih*aspect}
-  sx.drawImage(entry.img,(iw-cw)/2,(ih-ch)/2,cw,ch,0,0,cols,rows);
+  cw/=state.zoom;ch/=state.zoom;
+  sx.drawImage(entry.img,(iw-cw)/2*(1+state.ox),(ih-ch)/2*(1+state.oy),cw,ch,0,0,cols,rows);
   const d=sx.getImageData(0,0,cols,rows).data,g=new Float32Array(cols*rows);let avg=0;
   for(let i=0;i<g.length;i++){const k=i*4;g[i]=.299*d[k]+.587*d[k+1]+.114*d[k+2];avg+=g[i]}
   avg/=g.length;
@@ -533,11 +544,12 @@ function drawTrail(x,W,H,s,r,term){
   const sx=W*.04,sy=H*.035,ex=W-ww-W*.04,ey=H-taskH-wh-H*.03;
   const amp=Math.min(H*.09,(ey-sy)*.35);
   const custom=state.path&&state.path.length>1?resample(state.path,n,W,H):null;
+  const centers=[];
   for(let i=0;i<n;i++){
     const t=n===1?1:i/(n-1);
     if(custom){
       // the pointer holds the title bar, like dragging a real window
-      const [cx,cy]=custom[i];
+      const [cx,cy]=custom[i];centers.push([cx,cy]);
       const px=Math.max(-ww*.35,Math.min(W-ww*.65,cx-ww/2)),py=Math.max(-10*s,Math.min(H-taskH-wh*.35,cy-27*s));
       imageWindow(x,px,py,ww,wh,s,P[Math.min(P.length-1,Math.floor(t*P.length*.999))],i===n-1,term);
       continue;
@@ -546,9 +558,11 @@ function drawTrail(x,W,H,s,r,term){
     if(mode===1){py+=Math.sin(t*Math.PI*2)*amp}
     if(mode===2){px=sx+(ex-sx)*(.5+.5*Math.sin(t*Math.PI*1.5-Math.PI/2))}
     py=Math.max(sy,Math.min(ey,py));
+    centers.push([px+ww/2,py+27*s]);
     const img=P[Math.min(P.length-1,Math.floor(t*P.length*.999))];
     imageWindow(x,px,py,ww,wh,s,img,i===n-1,term);
   }
+  lastTrail={pts:centers,ww,wh,W,H,s};
   // taskbar
   const ty=H-taskH;
   bevel(x,0,ty,W,taskH,s,false);
@@ -567,17 +581,27 @@ function drawTrail(x,W,H,s,r,term){
 }
 
 /* ---------- 글리치만 켰을 때의 장면 ---------- */
+function glitchLayout(W,H,s){
+  const r=rng(state.seed*7+3),rand=(a,b)=>a+r()*(b-a),z=state.winSize/.6,P=pics();
+  const items=[];
+  for(let i=0;i<4;i++){const w=rand(360,460)*s,h=rand(180,220)*s;items.push({id:'d'+i,type:'dialog',x:rand(-40*s,W-w+40*s),y:rand(0,H-h),w,h})}
+  const aw=Math.min(W*.9,W*.62*z),ah=Math.min(aw*1.15,H*.6);
+  items.push({id:'i1',type:'img',x:W*.06,y:H*.06,w:aw,h:ah,pi:P.length>1?1:0,cap:false});
+  const bw=Math.min(W*.92,W*.7*z),bh=Math.min(bw*1.1,H*.65);
+  items.push({id:'i0',type:'img',x:W-bw-W*.05,y:H-bh-H*.05,w:bw,h:bh,pi:0,cap:true});
+  items.push({id:'d4',type:'dialog',x:W*.08,y:H*.5,w:420*s,h:200*s});
+  items.forEach(it=>{const e=state.edits[it.id];if(e){it.x=e.x*W;it.y=e.y*H;it.w=e.w*W;it.h=e.h*H}});
+  // windows you touched come to the front, in the order you touched them
+  const rank=id=>{const k=state.zorder.indexOf(id);return k<0?-1:k};
+  return items.map((it,i)=>[it,i]).sort((A,B)=>{const ra=rank(A[0].id),rb=rank(B[0].id);if(ra<0&&rb<0)return A[1]-B[1];if(ra<0)return -1;if(rb<0)return 1;return ra-rb}).map(v=>v[0]);
+}
+let lastLayout=null,lastTrail=null;
 function drawGlitchScene(x,W,H,s,r){
   const P=pics();
   x.fillStyle='#050505';x.fillRect(0,0,W,H);
-  const rand=(a,b)=>a+r()*(b-a);
-  for(let i=0;i<4;i++){const w=rand(360,460)*s,h=rand(180,220)*s;dialog(x,{x:rand(-40*s,W-w+40*s),y:rand(0,H-h),w,h},s)}
-  const z=state.winSize/.6;
-  const aw=Math.min(W*.9,W*.62*z),ah=Math.min(aw*1.15,H*.6);
-  imageWindow(x,W*.06,H*.06,aw,ah,s,P[P.length>1?1:0],false);
-  const bw=Math.min(W*.92,W*.7*z),bh=Math.min(bw*1.1,H*.65);
-  imageWindow(x,W-bw-W*.05,H-bh-H*.05,bw,bh,s,P[0],true);
-  dialog(x,{x:W*.08,y:H*.5,w:420*s,h:200*s},s);
+  const items=glitchLayout(W,H,s);
+  items.forEach(it=>{if(it.type==='img')imageWindow(x,it.x,it.y,it.w,it.h,s,P[Math.min(it.pi,P.length-1)],it.cap);else dialog(x,it,s)});
+  lastLayout=items;
 }
 
 /* ---------- 터미널만 켰을 때의 장면 ---------- */
@@ -622,18 +646,49 @@ function postCRT(x,W,H,s){
 }
 function scanlines(x,W,H,s,a){x.fillStyle=`rgba(0,0,0,${a})`;for(let y=0;y<H;y+=3.5*s)x.fillRect(0,y,W,1.3*s)}
 
-function render(){
+let activeId=null;
+function trailMoveMode(){return state.layers.trail&&state.trailMode==='move'}
+function drawHandles(o,k){
+  if(!trailMoveMode()||!lastTrail||!lastTrail.pts.length)return;
+  const dpr=window.devicePixelRatio||1,pts=lastTrail.pts,a=pts[0],z=pts[pts.length-1];
+  o.save();o.setLineDash([6*dpr,5*dpr]);o.strokeStyle='rgba(255,255,255,.8)';o.lineWidth=2*dpr;
+  o.beginPath();pts.forEach((p,i)=>i?o.lineTo(p[0]*k,p[1]*k):o.moveTo(p[0]*k,p[1]*k));o.stroke();o.setLineDash([]);
+  const dot=(p,fill)=>{o.beginPath();o.arc(p[0]*k,p[1]*k,9*dpr,0,Math.PI*2);o.fillStyle=fill?'#fff':'rgba(0,0,0,.55)';o.fill();o.lineWidth=3*dpr;o.strokeStyle='#fff';o.stroke()};
+  o.shadowColor='rgba(0,0,0,.6)';o.shadowBlur=6*dpr;
+  if(pts.length>1)dot(a,false);dot(z,true);
+  o.font=`700 ${12*dpr}px ${FONT}`;o.fillStyle='#fff';o.textBaseline='middle';
+  if(pts.length>1)o.fillText('시작',a[0]*k+14*dpr,a[1]*k);o.fillText('끝',z[0]*k+14*dpr,z[1]*k);
+  o.restore();
+}
+function render(fast){
   const W=BASE_W,H=Math.round(W*state.ratio),s=W/1200;
   const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});
   const r=rng(state.seed),L=state.layers;
+  lastLayout=null;
   if(L.trail)drawTrail(x,W,H,s,r,L.term);
   else if(L.term)drawTermScene(x,W,H,s,r);
   else drawGlitchScene(x,W,H,s,r);
+  if(fast){
+    // quick preview while dragging: no glitch/CRT, drawn on the overlay
+    const b=out.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+    ov.width=Math.round(b.width*dpr);ov.height=Math.round(b.height*dpr);
+    const o=ov.getContext('2d');o.drawImage(c,0,0,ov.width,ov.height);
+    const it=lastLayout&&lastLayout.find(v=>v.id===activeId);
+    drawHandles(o,ov.width/W);
+    if(it){const k=ov.width/W;o.setLineDash([8*dpr,6*dpr]);o.strokeStyle='#fff';o.lineWidth=2*dpr;o.strokeRect(it.x*k,it.y*k,it.w*k,it.h*k);
+      o.setLineDash([]);o.fillStyle='#fff';o.fillRect((it.x+it.w)*k-10*dpr,(it.y+it.h)*k-10*dpr,12*dpr,12*dpr)}
+    return;
+  }
   if(L.glitch)postGlitch(x,W,H,s,r);
   if(L.term)postCRT(x,W,H,s);
   if(L.term||L.glitch)scanlines(x,W,H,s,L.term?.3:.2);
   lastCanvas=c;
   out.src=c.toDataURL('image/png');
+  const b=out.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  const o=ov.getContext('2d');
+  if(b.width){ov.width=Math.round(b.width*dpr);ov.height=Math.round(b.height*dpr)}
+  o.clearRect(0,0,ov.width,ov.height);
+  out.decode?out.decode().then(()=>{const bb=out.getBoundingClientRect();if(bb.width&&Math.abs(bb.width*dpr-ov.width)>1){ov.width=Math.round(bb.width*dpr);ov.height=Math.round(bb.height*dpr)}drawHandles(ov.getContext('2d'),ov.width/W)}).catch(()=>{}):drawHandles(o,ov.width/W);
 }
 let lastCanvas=null,pending=false;
 const out=document.getElementById('out');
@@ -659,9 +714,12 @@ function syncUI(){
   $('trailField').hidden=!L.trail;
   $('glField').hidden=!L.glitch;
   $('effectField').hidden=L.term;
-  $('hint').hidden=!L.trail;out.classList.toggle('draggable',L.trail);
-  $('autoPath').hidden=!state.path;
-  $('hintText').textContent=state.path?'직접 그린 경로를 쓰는 중이에요. 다시 드래그하면 새 경로로 바뀌어요.':'미리보기 위를 드래그하면, 창을 끌고 간 길대로 잔상이 생겨요.';
+  const mv=!L.trail&&!L.term;
+  $('tmode').hidden=!L.trail;
+  $('hint').hidden=!L.trail&&!mv;out.classList.toggle('draggable',L.trail||mv);
+  $('resetWins').hidden=!(mv&&Object.keys(state.edits).length);
+  $('autoPath').hidden=!state.path||!L.trail;
+  $('hintText').textContent=(L.trail&&state.trailMode==='move')?'가운데를 끌면 잔상 줄 전체가 움직이고, 시작·끝 점을 끌면 줄이 늘어나거나 방향이 바뀌어요.':mv?'창을 끌어서 옮기고, 오른쪽 아래 모서리를 끌면 크기가 바뀌어요. 누른 창이 맨 앞으로 와요.':state.path?'직접 그린 경로를 쓰는 중이에요. 다시 드래그하면 새 경로로 바뀌어요.':'미리보기 위를 드래그하면, 창을 끌고 간 길대로 잔상이 생겨요.';
 }
 $('layers').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -686,8 +744,56 @@ function drawOverlay(){
   c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=4*dpr;
   c.beginPath();drawing.forEach((p,i)=>{const X=p[0]*ov.width,Y=p[1]*ov.height;i?c.lineTo(X,Y):c.moveTo(X,Y)});c.stroke();
 }
+let drag=null,fastPending=false;
+function scheduleFast(){if(fastPending)return;fastPending=true;requestAnimationFrame(()=>{fastPending=false;render(true)})}
+function canvasPt(e){const b=out.getBoundingClientRect(),W=BASE_W,H=Math.round(W*state.ratio);return[(e.clientX-b.left)/b.width*W,(e.clientY-b.top)/b.height*H]}
+function movable(){return !state.layers.trail&&!state.layers.term}
 out.addEventListener('pointerdown',e=>{
-  if(!state.layers.trail||e.button!==0)return;
+  if(e.button!==0||!movable()||!lastLayout)return;
+  const [px,py]=canvasPt(e),s=BASE_W/1200;
+  const hit=[...lastLayout].reverse().find(it=>px>=it.x&&px<=it.x+it.w&&py>=it.y&&py<=it.y+it.h);
+  if(!hit)return;
+  e.preventDefault();out.setPointerCapture(e.pointerId);
+  const resize=px>it_r(hit)-48*s&&py>hit.y+hit.h-48*s;
+  drag={id:hit.id,resize,sx:px,sy:py,o:{x:hit.x,y:hit.y,w:hit.w,h:hit.h}};
+  activeId=hit.id;state.zorder=state.zorder.filter(v=>v!==hit.id).concat(hit.id);
+  scheduleFast();
+});
+function it_r(it){return it.x+it.w}
+out.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const [px,py]=canvasPt(e),W=BASE_W,H=Math.round(W*state.ratio),s=W/1200,o=drag.o,dx=px-drag.sx,dy=py-drag.sy;
+  const n=drag.resize?{x:o.x,y:o.y,w:Math.max(220*s,o.w+dx),h:Math.max(150*s,o.h+dy)}:{x:o.x+dx,y:o.y+dy,w:o.w,h:o.h};
+  state.edits[drag.id]={x:n.x/W,y:n.y/H,w:n.w/W,h:n.h/H};
+  scheduleFast();
+});
+function endMove(){if(!drag)return;drag=null;activeId=null;syncUI();schedule()}
+out.addEventListener('pointerup',endMove);out.addEventListener('pointercancel',endMove);
+let tdrag=null;
+out.addEventListener('pointerdown',e=>{
+  if(e.button!==0||!trailMoveMode()||!lastTrail)return;
+  e.preventDefault();out.setPointerCapture(e.pointerId);
+  const [px,py]=canvasPt(e),T=lastTrail,pts=T.pts.map(p=>p.slice()),hr=40*T.s;
+  const near=p=>Math.hypot(p[0]-px,p[1]-py)<hr;
+  let kind='all';
+  if(near(pts[pts.length-1]))kind='end';else if(pts.length>1&&near(pts[0]))kind='start';
+  // arc-length weights so the middle bends smoothly when an end is dragged
+  const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  const tot=cum[cum.length-1]||1;
+  tdrag={kind,sx:px,sy:py,pts,w:cum.map(c=>c/tot)};
+  scheduleFast();
+});
+out.addEventListener('pointermove',e=>{
+  if(!tdrag)return;
+  const [px,py]=canvasPt(e),dx=px-tdrag.sx,dy=py-tdrag.sy,W=BASE_W,H=Math.round(W*state.ratio);
+  state.path=tdrag.pts.map((p,i)=>{const f=tdrag.kind==='all'?1:tdrag.kind==='end'?tdrag.w[i]:1-tdrag.w[i];return[(p[0]+dx*f)/W,(p[1]+dy*f)/H]});
+  if(state.path.length===1)state.path.push(state.path[0].slice());
+  scheduleFast();
+});
+function endT(){if(!tdrag)return;tdrag=null;syncUI();schedule()}
+out.addEventListener('pointerup',endT);out.addEventListener('pointercancel',endT);
+out.addEventListener('pointerdown',e=>{
+  if(!state.layers.trail||state.trailMode!=='draw'||e.button!==0)return;
   e.preventDefault();out.setPointerCapture(e.pointerId);drawing=[toNorm(e)];drawOverlay();
 });
 out.addEventListener('pointermove',e=>{
@@ -701,12 +807,19 @@ function endDraw(){
 }
 out.addEventListener('pointerup',endDraw);out.addEventListener('pointercancel',endDraw);
 $('autoPath').addEventListener('click',()=>{state.path=null;syncUI();schedule()});
-bindSeg('ratio','ratio',Number);bindSeg('icon','icon');
+bindSeg('ratio','ratio',Number);
+$('tmode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('tmode').querySelectorAll('button').forEach(o=>o.setAttribute('aria-pressed',o===b));state.trailMode=b.dataset.v;syncUI();schedule()});bindSeg('icon','icon');
 $('tn').addEventListener('input',e=>{state.trailN=+e.target.value;$('tnOut').textContent=e.target.value;schedule()});
+function photoUI(){$('zm').value=state.zoom*100;$('zmOut').textContent=Math.round(state.zoom*100)+'%';$('px').value=state.ox*100;$('pxOut').textContent=Math.round(state.ox*100);$('py').value=state.oy*100;$('pyOut').textContent=Math.round(state.oy*100)}
+$('zm').addEventListener('input',e=>{state.zoom=e.target.value/100;photoUI();schedule()});
+$('px').addEventListener('input',e=>{state.ox=e.target.value/100;photoUI();schedule()});
+$('py').addEventListener('input',e=>{state.oy=e.target.value/100;photoUI();schedule()});
+$('resetPhoto').addEventListener('click',()=>{state.zoom=1;state.ox=0;state.oy=0;photoUI();schedule()});
 $('ws').addEventListener('input',e=>{state.winSize=e.target.value/100;$('wsOut').textContent=e.target.value+'%';schedule()});bindSeg('colors','color');bindSeg('effect','effect');
 $('txt').addEventListener('input',e=>{state.text=e.target.value.trim()||'에러';$('barTitle').textContent=state.text;schedule()});
 $('count').addEventListener('input',e=>{state.count=+e.target.value;$('countOut').textContent=e.target.value;schedule()});
-$('shuffle').addEventListener('click',()=>{state.seed=Math.floor(Math.random()*1e9);schedule()});
+$('shuffle').addEventListener('click',()=>{state.seed=Math.floor(Math.random()*1e9);state.edits={};state.zorder=[];syncUI();schedule()});
+$('resetWins').addEventListener('click',()=>{state.edits={};state.zorder=[];syncUI();schedule()});
 
 function toast(m){$('toast').textContent=m;clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').textContent='',3500)}
 $('download').addEventListener('click',()=>{
